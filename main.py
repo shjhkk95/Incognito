@@ -1,6 +1,5 @@
 import requests
 import password_generator
-import 
 
 from bs4 import BeautifulSoup
 import socket
@@ -27,16 +26,17 @@ def crawl_bfs(initial_link):
     # While queue is not empty
     while queue:
         node = queue.popleft()
-        # Make GET request to the first element in queue
+        seen.add(node.link)
+        # TODO Make GET request to the first element in queue
         html_text = requests.get_request(node.link)
 
         found_links = []
         # Use BeautifulSoup to parse:
         soup = BeautifulSoup(html_text, 'lxml')
-            # Get list of links
-            # Get list of keywords
+            # TODO Get list of links
+            # TODO Get list of keywords
 
-            # Was a form found
+            # TODO Was a form found
 
         # For each link in list of link
         for child in range(len(found_links)):
@@ -54,10 +54,6 @@ def crawl_bfs(initial_link):
                     form_urls.add(child)
                     # Set form_found to false
                     form_found = False
-
-
-        
-
 
     return 0
 
