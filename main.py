@@ -64,13 +64,13 @@ def crawl_dfs(link, depth, seen_links):
     html_text = requests.get_request(link)
 
     # Parse HTML
-    parser = html_parser(html_text)
+    parser = html_parser.HTMLParser(html_text)
     found_links = parser.extract_links()
     print(found_links)
     # Get Links into a list
 
     # For each Link, if link not in Seen, crawl_dfs
-    if depth < MAX_DEPTH:
+    if depth <= MAX_DEPTH:
         for found_link in found_links:
             if found_link not in seen_links:
                 seen_links.add(found_link)
