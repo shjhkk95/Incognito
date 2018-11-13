@@ -1,11 +1,13 @@
 import requests
 import password_generator
+import html_parser
 
 from bs4 import BeautifulSoup
 import socket
 import collections
 
 password_list = []
+MAX_DEPTH = 0
 
 class Node:
     def __init__(self, link, depth):
@@ -57,12 +59,29 @@ def crawl_bfs(initial_link):
 
     return 0
 
-def crawl_dfs(initial_link):
+def crawl_dfs(link, depth, seen_links):
+    # Get HTML
+    html_text = requests.get_request(link)
+
+    # Parse HTML
+    parser = html_parser(html_text)
+    found_links = parser.extract_links()
+    print(found_links)
+    # Get Links into a list
+
+    # For each Link, if link not in Seen, crawl_dfs
+    if depth < MAX_DEPTH:
+        for found_link in found_links:
+            if found_link not in seen_links:
+                seen_links.add(found_link)
+                crawl_dfs(found_link, depth + 1, seen_links)
     return 0
 
 
 def html_parsing(html_text):
-
+    return 0
 
 if __name__ == '__main__':
-    web_crawler()
+    #web_crawler()
+    seen_links = []
+    crawl_dfs("http://18.219.249.115/", 0, seen_links)
