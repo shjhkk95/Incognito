@@ -1,5 +1,6 @@
 import requests
 import password_generator
+import html_parser
 
 from bs4 import BeautifulSoup
 import socket
@@ -16,45 +17,49 @@ class Node:
 def web_crawler():
     print('Hello Web Crawler')
 
+    form_urls, found_keywords = set(), []
+    crawl_bfs('18.219.115/', '18.219.249.115', 80, form_urls, found_keywords)
+
     print(password_generator.generate_password_list(["leet", "code", "hacker"]))
 
-def crawl_bfs(initial_link):
+def crawl_bfs(initial_link, host_name, port, form_urls, found_keywords):
     # Add initial_link to the dequeue
     # Add URL to seen set
-    seen, form_urls, queue = set(), set(), collections.deque(Node(initial_link, 0))
+    seen, queue = set(), collections.deque(Node(initial_link, 0))
 
     # While queue is not empty
     while queue:
         node = queue.popleft()
         seen.add(node.link)
         # TODO Make GET request to the first element in queue
-        html_text = requests.get_request(node.link)
+        conn = requests.init_socket(host_name, port)
+        html_doc = requests.get_request(conn, node.link, {})
+        conn.close()
 
-        found_links = []
-        # Use BeautifulSoup to parse:
-        soup = BeautifulSoup(html_text, 'lxml')
-            # TODO Get list of links
-            # TODO Get list of keywords
 
-            # TODO Was a form found
+        parser = html_parser.HTMLParser(html_doc)
+        found_links = parser.extract_links()
+        found_keywords.append(parser.extract_words())
+        form_found = parser.detect_login_form()
 
         # For each link in list of link
-        for child in range(len(found_links)):
-            # If the link is not in seen set
-            if child not in seen:
-                # Add link to seen
-                seen.add(child)
-                # Add link to queue
-                queue.append(Node(child, node.depth + 1))
+        for link in range(len(found_links)):
+            # TODO if the link will not naviagte us away
+                # If the link is not in seen set
+                if link not in seen:
+                    # Add link to seen
+                    seen.add(link)
+                    # Add link to queue
+                    queue.append(Node(initial_link + link, node.depth + 1))
 
 
-                # If a form was seen at this link
-                if form_found is True:
-                    # Add link to form url list
-                    form_urls.add(child)
-                    # Set form_found to false
-                    form_found = False
-
+                    # If a form was seen at this link
+                    if form_found is True:
+                        # Add link to form url list
+                        form_urls.add(initial_link + link)
+                        # Set form_found to false
+                        form_found = False
+    
     return 0
 
 def crawl_dfs(initial_link):
@@ -62,7 +67,7 @@ def crawl_dfs(initial_link):
 
 
 def html_parsing(html_text):
-
+    return 0
 
 if __name__ == '__main__':
     web_crawler()
