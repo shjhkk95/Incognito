@@ -18,7 +18,16 @@ class Node:
 def web_crawler():
     print('Hello Web Crawler')
 
-    print(password_generator.generate_password_list(["leet", "code", "hacker"]))
+    conn = requests.init_socket("www.google.com",443)
+    html_doc = requests.get_request(conn, "www.google.com", {})
+
+    parser = html_parser.HTMLParser(html_doc)
+
+    linkset = parser.extract_links()
+    for link in linkset:
+        print(link)
+
+   ## print(password_generator.generate_password_list(["leet", "code", "hacker"]))
 
 def crawl_bfs(initial_link):
     # Add initial_link to the dequeue
@@ -59,29 +68,42 @@ def crawl_bfs(initial_link):
 
     return 0
 
-def crawl_dfs(link, depth, seen_links):
+def crawl_dfs(url, host_name, port, found_keywords, found_urls):
     # Get HTML
-    html_text = requests.get_request(link)
+    conn = requests.init_socket(host_name, port)
+    html_text = requests.get_request(conn, url, {})
+    urls = collections.deque()
 
-    # Parse HTML
-    parser = html_parser.HTMLParser(html_text)
-    found_links = parser.extract_links()
-    print(found_links)
-    # Get Links into a list
-
-    # For each Link, if link not in Seen, crawl_dfs
-    if depth <= MAX_DEPTH:
-        for found_link in found_links:
-            if found_link not in seen_links:
-                seen_links.add(found_link)
-                crawl_dfs(found_link, depth + 1, seen_links)
+    crawl_def_helper(url, host_name, port, queue)
+    
+   
     return 0
 
+#Traverse the Link in DFS manner and add to the queue
+def crawl_def_helper(url, host_name, port, queue):
 
+    
+    conn = requests.init_socket(host_name, port)
+    html_doc = requests.get_request(conn, url, {})
+    parser = html_parser.HTMLParser(html_doc)
+    #linkset = all the links that is found on current page
+    linkset = parser.extract_links()
+    linkset = linkset.difference(queue)
+
+    if (len(linkset) ==0 ):
+        return
+    
+    ##dfs : add child into queue prior to current node.
+    for link in linkset:
+        crawl_def_helper(link, host_name, port, found_urls)
+
+    queue.append(url)
+    return
+
+    
 def html_parsing(html_text):
     return 0
 
 if __name__ == '__main__':
-    #web_crawler()
-    seen_links = []
-    crawl_dfs("http://18.219.249.115/", 0, seen_links)
+    web_crawler()
+    
