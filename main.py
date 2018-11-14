@@ -7,6 +7,7 @@ import socket
 import collections
 
 password_list = []
+MAX_DEPTH = 0
 
 class Node:
     def __init__(self, link, depth):
@@ -19,8 +20,22 @@ def web_crawler():
 
     form_urls, found_keywords = set(), []
     crawl_bfs('18.219.115/', '18.219.249.115', 80, form_urls, found_keywords)
+    ##conn = requests.init_socket("www.google.com",443)
+   ## html_doc = requests.get_request(conn, "www.google.com", {})
 
-    print(password_generator.generate_password_list(["leet", "code", "hacker"]))
+   ## parser = html_parser.HTMLParser(html_doc)
+
+   ## linkset = parser.extract_links()
+  ##  for link in linkset:
+  ##      print(link)
+
+    queue = crawl_dfs("www.google.com", "www.google.com", 443)
+    while (len(queue) > 0):
+        print(queue.popleft())
+    
+    
+
+   ## print(password_generator.generate_password_list(["leet", "code", "hacker"]))
 
 def crawl_bfs(initial_link, host_name, port, form_urls, found_keywords):
     # Add initial_link to the dequeue
@@ -62,12 +77,47 @@ def crawl_bfs(initial_link, host_name, port, form_urls, found_keywords):
     
     return 0
 
-def crawl_dfs(initial_link):
-    return 0
+def crawl_dfs(url, host_name, port):
+    # Get HTML
+    conn = requests.init_socket(host_name, port)
+    html_text = requests.get_request(conn, url, {})
+    queue = collections.deque([])
 
+    crawl_def_helper(url, host_name, port, queue)
+    
+   
+    return queue
 
+#Traverse the Link in DFS manner and add to the queue
+def crawl_def_helper(url, host_name, port, queue):
+
+    print(url)
+    conn = requests.init_socket(host_name, port)
+    html_doc = requests.get_request(conn, url, {})
+    if html_doc == None :
+        queue.append(url)
+        return
+        
+    parser = html_parser.HTMLParser(html_doc)
+    #linkset = all the links that is found on current page
+    linkset = parser.extract_links()
+    linkset = linkset.difference(queue)
+
+    if (len(linkset) ==0 ):
+        queue.append(url)
+        return
+    
+    ##dfs : add child into queue prior to current node.
+    for link in linkset:
+        crawl_def_helper(link, host_name, port, queue)
+
+    queue.append(url)
+    return
+
+    
 def html_parsing(html_text):
     return 0
 
 if __name__ == '__main__':
     web_crawler()
+    

@@ -43,7 +43,7 @@ def receive_response(conn):
     try:
         while data != b'':
             data = conn.recv(1024)
-            response += data.decode(CHAR_ENCODING)
+            response += data.decode(CHAR_ENCODING,'ignore')
     except timeout:
         pass
     return response   
