@@ -18,14 +18,20 @@ class Node:
 def web_crawler():
     print('Hello Web Crawler')
 
-    conn = requests.init_socket("www.google.com",443)
-    html_doc = requests.get_request(conn, "www.google.com", {})
+    ##conn = requests.init_socket("www.google.com",443)
+   ## html_doc = requests.get_request(conn, "www.google.com", {})
 
-    parser = html_parser.HTMLParser(html_doc)
+   ## parser = html_parser.HTMLParser(html_doc)
 
-    linkset = parser.extract_links()
-    for link in linkset:
-        print(link)
+   ## linkset = parser.extract_links()
+  ##  for link in linkset:
+  ##      print(link)
+
+    queue = crawl_dfs("www.google.com", "www.google.com", 443)
+    while (len(queue) > 0):
+        print(queue.popleft())
+    
+    
 
    ## print(password_generator.generate_password_list(["leet", "code", "hacker"]))
 
@@ -68,34 +74,39 @@ def crawl_bfs(initial_link):
 
     return 0
 
-def crawl_dfs(url, host_name, port, found_keywords, found_urls):
+def crawl_dfs(url, host_name, port):
     # Get HTML
     conn = requests.init_socket(host_name, port)
     html_text = requests.get_request(conn, url, {})
-    urls = collections.deque()
+    queue = collections.deque([])
 
     crawl_def_helper(url, host_name, port, queue)
     
    
-    return 0
+    return queue
 
 #Traverse the Link in DFS manner and add to the queue
 def crawl_def_helper(url, host_name, port, queue):
 
-    
+    print(url)
     conn = requests.init_socket(host_name, port)
     html_doc = requests.get_request(conn, url, {})
+    if html_doc == None :
+        queue.append(url)
+        return
+        
     parser = html_parser.HTMLParser(html_doc)
     #linkset = all the links that is found on current page
     linkset = parser.extract_links()
     linkset = linkset.difference(queue)
 
     if (len(linkset) ==0 ):
+        queue.append(url)
         return
     
     ##dfs : add child into queue prior to current node.
     for link in linkset:
-        crawl_def_helper(link, host_name, port, found_urls)
+        crawl_def_helper(link, host_name, port, queue)
 
     queue.append(url)
     return
