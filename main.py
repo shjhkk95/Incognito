@@ -4,24 +4,42 @@ import password_generator
 import collections
 
 password_list = []
-MAX_DEPTH = 0
+MAX_DEPTH = 5
 
 class Node:
     def __init__(self, url, depth):
         self.url = url
         self.depth = depth
     
+def reformat_url(url, base_url=''):
+    _, _, port = extract_url_parts(url)
+    
+    # If base URL is given, prepend it to the given URL
+    if base_url != '':      
+        # Ignore relative URLs starting with '#'
+        if '#' not in url:
+            # Remove trailing slash from base url
+            if (base_url[-1] == '/'):
+                base_url = base_url[:-1]
+            
+            # Remove starting slash from url
+            if (url[0] == '/'):
+                url = url[1:]
+
+            if url not in base_url:
+                url = base_url + '/' + url
+    else:
+        # Add protocol to url
+        if port == 80 and 'http://' not in url:
+            url = 'http://' + url
+        elif port == 443 and 'https://' not in url:
+            url = 'https://' + url
+    return url
 
 def web_crawler():
     print('Hello Web Crawler')
     url = '18.219.249.115'
-    _, _, port = extract_url_parts(url)
-    
-    # Add protocol to url
-    if port == 80 or 'http://' in url:
-        url = 'http://' + url
-    elif port == 443 or 'https://' in url:
-        url = 'https://' + url
+    url = reformat_url(url)
 
     keywords, form_url = crawl_bfs(url, {})
     print(keywords)
@@ -47,11 +65,11 @@ def web_crawler():
     """
 
 def crawl_bfs(start_url, header_dict):
-    # Add start URL to the deque and set of seen URLs
+    form_url = None
+    keywords = set()
     seen = set()
     queue = collections.deque()
-    keywords = set()
-    form_url = None
+    
     # Add start URL to the deque and set of seen URLs
     start_node = Node(start_url, 0)
     queue.append(start_node)
@@ -61,27 +79,41 @@ def crawl_bfs(start_url, header_dict):
     while queue:
         node = queue.popleft()
         print('Depth ' + str(node.depth) + ': ' + node.url)
+
+        # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
+        if node.url[-1] == '/':
+            seen.add(node.url[-1])
+        # Else the URL doesn't have a trailing slash and add the URL with a slash to set of seen nodes
+        else:
+            seen.add(node.url + '/')   
         
         # Make GET request to the first element in queue        
         html_doc = get_request(node.url, header_dict)
         if html_doc is not None:
             parser = HTMLParser(html_doc)
 
-            # Retrieve set of URLs reachable from current node 
-            linked_urls = parser.extract_urls()
-
             # Extract and add words from current page to the set of keywords
             keywords |= parser.extract_words()
-            
+
+            # Attempt to find form if not found yet
             if form_url is None:
                 form_found = parser.detect_login_form()
                 if form_found:
                     form_url = node.url
+            
+            # Add reachable URLs from current node if its depth < max depth
+            if node.depth < MAX_DEPTH:
+                # Retrieve set of URLs reachable from current node 
+                linked_urls = parser.extract_urls()
 
-            for url in linked_urls:
-                if url not in seen and start_url in url:
-                    seen.add(url)
-                    queue.append(Node(url, node.depth + 1))
+                for url in linked_urls:
+                    # Reformat if relative url given
+                    if 'http' not in url:
+                        url = reformat_url(url, node.url)                 
+
+                    if url not in seen and start_url in url:
+                        seen.add(url)
+                        queue.append(Node(url, node.depth + 1))
         
     return keywords, form_url
 

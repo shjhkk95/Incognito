@@ -38,9 +38,9 @@ def extract_url_parts(url):
     if ':' in host:
         host_and_port = host.split(':', 1)
         host = host_and_port[0]
-        port = host_and_port[1]
+        port = int(host_and_port[1])
 
-    return (host, path, port)
+    return host, path, port
 
 def create_request_header(url, method, header_dict, body=''):
     host, path, _ = extract_url_parts(url)

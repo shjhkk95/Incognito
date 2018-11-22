@@ -19,7 +19,7 @@ class HTMLParser:
             for link in self.soup.find_all('a'):
                 href = link.get('href')
             
-                if href is not None and 'http' in href:
+                if href is not None:
                     urls.add(href)
         return urls
 
@@ -73,11 +73,9 @@ class HTMLParser:
         return login
 
 """
-conn = init_socket('18.219.249.115', 443)
 get = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246'}
 
 html_doc = get_request('18.219.249.115/wp-login.php', get)
-print(html_doc)
 parser = HTMLParser(html_doc)
 
 user = 'user'
@@ -87,7 +85,8 @@ post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
         'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': str(len(login))}
 
-if get_status(post_request('18.219.249.115/wp-login.php', post, login)) == 302:
+response = post_request('18.219.249.115/wp-login.php', post, login)
+if get_status(response) == 302:
     print('Login Succeeded')
 else:
     print('Login Failed')
