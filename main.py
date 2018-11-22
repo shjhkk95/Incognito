@@ -1,81 +1,89 @@
-import requests
+from html_parser import HTMLParser
+from requests import extract_url_parts, get_request, post_request
 import password_generator
-import html_parser
-
-from bs4 import BeautifulSoup
-import socket
 import collections
 
 password_list = []
 MAX_DEPTH = 0
 
 class Node:
-    def __init__(self, link, depth):
-        self.link = link
+    def __init__(self, url, depth):
+        self.url = url
         self.depth = depth
     
 
 def web_crawler():
     print('Hello Web Crawler')
+    url = '18.219.249.115'
+    _, _, port = extract_url_parts(url)
+    
+    # Add protocol to url
+    if port == 80 or 'http://' in url:
+        url = 'http://' + url
+    elif port == 443 or 'https://' in url:
+        url = 'https://' + url
 
+    keywords, form_url = crawl_bfs(url, {})
+    print(keywords)
+    print(form_url)    
+
+    """
     form_urls, found_keywords = set(), []
     crawl_bfs('18.219.115/', '18.219.249.115', 80, form_urls, found_keywords)
-    ##conn = requests.init_socket("www.google.com",443)
-   ## html_doc = requests.get_request(conn, "www.google.com", {})
+    conn = requests.init_socket("www.google.com",443)
+    html_doc = requests.get_request(conn, "www.google.com", {})
 
-   ## parser = html_parser.HTMLParser(html_doc)
+    parser = html_parser.HTMLParser(html_doc)
 
-   ## linkset = parser.extract_links()
-  ##  for link in linkset:
-  ##      print(link)
+    linkset = parser.extract_links()
+    for link in linkset:
+        print(link)
 
     queue = crawl_dfs("www.google.com", "www.google.com", 443)
     while (len(queue) > 0):
         print(queue.popleft())
-    
-    
 
-   ## print(password_generator.generate_password_list(["leet", "code", "hacker"]))
+    print(password_generator.generate_password_list(["leet", "code", "hacker"]))    
+    """
 
-def crawl_bfs(initial_link, host_name, port, form_urls, found_keywords):
-    # Add initial_link to the dequeue
-    # Add URL to seen set
-    seen, queue = set(), collections.deque(Node(initial_link, 0))
+def crawl_bfs(start_url, header_dict):
+    # Add start URL to the deque and set of seen URLs
+    seen = set()
+    queue = collections.deque()
+    keywords = set()
+    form_url = None
+    # Add start URL to the deque and set of seen URLs
+    start_node = Node(start_url, 0)
+    queue.append(start_node)
+    seen.add(start_node.url)
 
     # While queue is not empty
     while queue:
         node = queue.popleft()
-        seen.add(node.link)
-        # TODO Make GET request to the first element in queue
-        conn = requests.init_socket(host_name, port)
-        html_doc = requests.get_request(conn, node.link, {})
-        conn.close()
+        print('Depth ' + str(node.depth) + ': ' + node.url)
+        
+        # Make GET request to the first element in queue        
+        html_doc = get_request(node.url, header_dict)
+        if html_doc is not None:
+            parser = HTMLParser(html_doc)
 
+            # Retrieve set of URLs reachable from current node 
+            linked_urls = parser.extract_urls()
 
-        parser = html_parser.HTMLParser(html_doc)
-        found_links = parser.extract_links()
-        found_keywords.append(parser.extract_words())
-        form_found = parser.detect_login_form()
+            # Extract and add words from current page to the set of keywords
+            keywords |= parser.extract_words()
+            
+            if form_url is None:
+                form_found = parser.detect_login_form()
+                if form_found:
+                    form_url = node.url
 
-        # For each link in list of link
-        for link in range(len(found_links)):
-            # TODO if the link will not naviagte us away
-                # If the link is not in seen set
-                if link not in seen:
-                    # Add link to seen
-                    seen.add(link)
-                    # Add link to queue
-                    queue.append(Node(initial_link + link, node.depth + 1))
-
-
-                    # If a form was seen at this link
-                    if form_found is True:
-                        # Add link to form url list
-                        form_urls.add(initial_link + link)
-                        # Set form_found to false
-                        form_found = False
-    
-    return 0
+            for url in linked_urls:
+                if url not in seen and start_url in url:
+                    seen.add(url)
+                    queue.append(Node(url, node.depth + 1))
+        
+    return keywords, form_url
 
 def crawl_dfs(url, host_name, port):
     # Get HTML
@@ -113,10 +121,6 @@ def crawl_def_helper(url, host_name, port, queue):
 
     queue.append(url)
     return
-
-    
-def html_parsing(html_text):
-    return 0
 
 if __name__ == '__main__':
     web_crawler()

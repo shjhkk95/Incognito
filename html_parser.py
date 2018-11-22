@@ -3,7 +3,7 @@ from nltk import word_tokenize
 from nltk.corpus import stopwords
 from requests import get_request, get_status, init_socket, post_request
 
-class HTMLParser():
+class HTMLParser:
     
     IGNORED_WORDS = set(stopwords.words('english'))
     TEXT_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li' , 'a']
@@ -12,16 +12,16 @@ class HTMLParser():
         self.html_doc = html_doc
         self.soup = BeautifulSoup(html_doc, "html.parser")
 
-    def extract_links(self):
-        links = set()
+    def extract_urls(self):
+        urls = set()
         if self.html_doc is not None:
             
             for link in self.soup.find_all('a'):
                 href = link.get('href')
             
                 if href is not None and 'http' in href:
-                    links.add(href)
-        return links
+                    urls.add(href)
+        return urls
 
     def extract_words(self):
         words = set()
@@ -72,10 +72,12 @@ class HTMLParser():
                         break # String is finished after password
         return login
 
+"""
 conn = init_socket('18.219.249.115', 443)
 get = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246'}
 
-html_doc = get_request(conn, '18.219.249.115/wp-login.php', get)
+html_doc = get_request('18.219.249.115/wp-login.php', get)
+print(html_doc)
 parser = HTMLParser(html_doc)
 
 user = 'user'
@@ -85,7 +87,8 @@ post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
         'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': str(len(login))}
 
-if get_status(post_request(conn, '18.219.249.115/wp-login.php', post, login)) == 302:
+if get_status(post_request('18.219.249.115/wp-login.php', post, login)) == 302:
     print('Login Succeeded')
 else:
     print('Login Failed')
+"""
