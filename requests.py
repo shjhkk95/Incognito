@@ -38,7 +38,10 @@ def extract_url_parts(url):
     if ':' in host:
         host_and_port = host.split(':', 1)
         host = host_and_port[0]
-        port = int(host_and_port[1])
+        try:
+            port = int(host_and_port[1])
+        except ValueError:
+            pass
 
     return host, path, port
 
@@ -72,6 +75,8 @@ def get_request(url, header_dict):
     get_string = create_request_header(url, 'GET', header_dict)
     send_request(conn, get_string)
     response = receive_response(conn)
+    if len(response) == 0:
+        return None
     status = get_status(response)
     if status >= 400:
         return None

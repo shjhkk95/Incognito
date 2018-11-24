@@ -49,7 +49,9 @@ class HTMLParser:
 
     def detect_login_form(self):
         for form in self.soup.find_all('form'):
-            if 'login' in str(form):
+            form_id = form.get('id')
+            form_name = form.get('name')
+            if (form_id and 'login' in form_id) or (form_name and 'login' in form_name):
                 return True
         return False
 

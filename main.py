@@ -4,155 +4,154 @@ import password_generator
 import collections
 
 password_list = []
-MAX_DEPTH = 5
+MAX_DEPTH = 10
 
 class Node:
     def __init__(self, url, depth):
         self.url = url
         self.depth = depth
     
-def reformat_url(url, base_url=''):
-    _, _, port = extract_url_parts(url)
-    
+def add_protocol(url, port):
+    # Add protocol to url
+    if port == 80 and 'http://' not in url:
+        url = 'http://' + url
+    elif port == 443 and 'https://' not in url:
+        url = 'https://' + url 
+    return url   
+
+def add_duplicate_url(url, seen):
+    # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
+    if url[-1] == '/':
+        seen.add(url[:-1])
+        
+    # Else the URL doesn't have a trailing slash and add the URL with a slash to set of seen nodes
+    else:
+        seen.add(url + '/')       
+
+def reformat_url(url, base_url=''):       
     # If base URL is given, prepend it to the given URL
     if base_url != '':      
+        
         # Ignore relative URLs starting with '#'
         if '#' not in url:
-            # Remove trailing slash from base url
-            if (base_url[-1] == '/'):
-                base_url = base_url[:-1]
             
-            # Remove starting slash from url
-            if (url[0] == '/'):
-                url = url[1:]
+            host, _, port = extract_url_parts(base_url)
+
+            # Remove trailing slash from base url
+            if base_url[-1] == '/':
+                base_url = base_url[:-1]
+                
+            # Look for URLs starting with "./" or "//"
+            if len(url) >= 2:
+                # Remove "./" from the start of the URL if present
+                if url[0:2] == './':
+                    url = url[2:]
+
+                # If URL starts with "//", prepend the appropriate protocol
+                elif url[0:2] == '//':
+                    base_url = add_protocol('', port)
+                    url = url[2:]
+                    if len(base_url) > 0:
+                        base_url = base_url[:-1]
+
+                # Remove "/" from the start of the URL if present
+                elif url[0] == '/':
+                    url = url[1:]
+                    base_url = host
 
             if url not in base_url:
                 url = base_url + '/' + url
     else:
-        # Add protocol to url
-        if port == 80 and 'http://' not in url:
-            url = 'http://' + url
-        elif port == 443 and 'https://' not in url:
-            url = 'https://' + url
+        _, _, port = extract_url_parts(url)
+        url = add_protocol(url, port)
     return url
 
-def web_crawler():
-    print('Hello Web Crawler')
-    url = '18.219.249.115'
-    url = reformat_url(url)
+def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
+    print('Depth ' + str(node.depth) + ': Processing: ' + node.url)
 
-    keywords, form_url = crawl_bfs(url, {})
-    print(keywords)
-    print(form_url)    
+    # Make GET request to the current URL      
+    html_doc = get_request(node.url, header_dict)
+    if html_doc is not None:
+        parser = HTMLParser(html_doc)
 
-    """
-    form_urls, found_keywords = set(), []
-    crawl_bfs('18.219.115/', '18.219.249.115', 80, form_urls, found_keywords)
-    conn = requests.init_socket("www.google.com",443)
-    html_doc = requests.get_request(conn, "www.google.com", {})
+        # Extract and add words from current page to the set of keywords
+        keywords |= parser.extract_words()
 
-    parser = html_parser.HTMLParser(html_doc)
+        # If a login form is found, add it to the set
+        form_found = parser.detect_login_form()
+        if form_found:
+            forms.add(node.url)
+        
+        # Add reachable URLs from current node if its depth < max depth
+        if node.depth < MAX_DEPTH:
+            # Retrieve set of URLs reachable from current node 
+            linked_urls = parser.extract_urls()
 
-    linkset = parser.extract_links()
-    for link in linkset:
-        print(link)
+            for url in linked_urls:
+                # Reformat if relative url given
+                if 'http' not in url:
+                    url = reformat_url(url, node.url)                 
 
-    queue = crawl_dfs("www.google.com", "www.google.com", 443)
-    while (len(queue) > 0):
-        print(queue.popleft())
-
-    print(password_generator.generate_password_list(["leet", "code", "hacker"]))    
-    """
+                if url not in seen and url.startswith(start_url):
+                    seen.add(url)
+                    add_duplicate_url(url, seen)
+                    # Traversal dependent function to add next node
+                    add_next(url) 
 
 def crawl_bfs(start_url, header_dict):
-    form_url = None
+    print('Starting Breadth-First Crawling')
+    print('-' * 50)
+    forms = set()
     keywords = set()
     seen = set()
     queue = collections.deque()
     
-    # Add start URL to the deque and set of seen URLs
+    # Add start URL to the queue and set of seen URLs
     start_node = Node(start_url, 0)
     queue.append(start_node)
     seen.add(start_node.url)
+    add_duplicate_url(start_node.url, seen)
 
     # While queue is not empty
     while queue:
         node = queue.popleft()
-        print('Depth ' + str(node.depth) + ': ' + node.url)
-
-        # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
-        if node.url[-1] == '/':
-            seen.add(node.url[-1])
-        # Else the URL doesn't have a trailing slash and add the URL with a slash to set of seen nodes
-        else:
-            seen.add(node.url + '/')   
+        add_to_queue = lambda url: queue.append(Node(url, node.depth + 1))  
+        process_node(start_url, node, header_dict, forms, keywords, seen, add_to_queue)
         
-        # Make GET request to the first element in queue        
-        html_doc = get_request(node.url, header_dict)
-        if html_doc is not None:
-            parser = HTMLParser(html_doc)
+    return keywords, forms, seen
 
-            # Extract and add words from current page to the set of keywords
-            keywords |= parser.extract_words()
-
-            # Attempt to find form if not found yet
-            if form_url is None:
-                form_found = parser.detect_login_form()
-                if form_found:
-                    form_url = node.url
-            
-            # Add reachable URLs from current node if its depth < max depth
-            if node.depth < MAX_DEPTH:
-                # Retrieve set of URLs reachable from current node 
-                linked_urls = parser.extract_urls()
-
-                for url in linked_urls:
-                    # Reformat if relative url given
-                    if 'http' not in url:
-                        url = reformat_url(url, node.url)                 
-
-                    if url not in seen and start_url in url:
-                        seen.add(url)
-                        queue.append(Node(url, node.depth + 1))
-        
-    return keywords, form_url
-
-def crawl_dfs(url, host_name, port):
-    # Get HTML
-    conn = requests.init_socket(host_name, port)
-    html_text = requests.get_request(conn, url, {})
-    queue = collections.deque([])
-
-    crawl_def_helper(url, host_name, port, queue)
+def crawl_dfs(start_url, header_dict):
+    """ Wrapper function to initialize first call to recursive DFS crawl function """
     
-   
-    return queue
+    print('Starting Depth-First Crawling')
+    print('-' * 50)    
+    forms = set()
+    keywords = set()
+    seen = set()
 
-#Traverse the Link in DFS manner and add to the queue
-def crawl_def_helper(url, host_name, port, queue):
-
-    print(url)
-    conn = requests.init_socket(host_name, port)
-    html_doc = requests.get_request(conn, url, {})
-    if html_doc == None :
-        queue.append(url)
-        return
-        
-    parser = html_parser.HTMLParser(html_doc)
-    #linkset = all the links that is found on current page
-    linkset = parser.extract_links()
-    linkset = linkset.difference(queue)
-
-    if (len(linkset) ==0 ):
-        queue.append(url)
-        return
+    start_node = Node(start_url, 0)
+    # Add start URL to the set of seen URLs
+    seen.add(start_node.url)
+    add_duplicate_url(start_node.url, seen)
     
-    ##dfs : add child into queue prior to current node.
-    for link in linkset:
-        crawl_def_helper(link, host_name, port, queue)
+    _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen)
+    return keywords, forms, seen
 
-    queue.append(url)
-    return
+def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen):
+    add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen)
+    process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack) 
+
+def web_crawler():
+    url = 'http://18.219.249.115/'
+    url = reformat_url(url)
+    
+    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
+    print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
+
+    print()
+
+    keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {})
+    print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
 
 if __name__ == '__main__':
     web_crawler()
