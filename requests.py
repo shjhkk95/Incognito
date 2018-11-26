@@ -1,3 +1,4 @@
+from url_utils import extract_url_parts
 from socket import timeout
 import socket
 import ssl
@@ -16,34 +17,6 @@ def get_status(response):
     status_line = response.split('\r\n', 1)[0]
     status_code = status_line.split(' ')[1]
     return int(status_code)
-
-def extract_url_parts(url):
-    port = 80 # Default to HTTP
-    path = ''
-    
-    if '://' in url:
-        url_parts = url.split('://', 1)
-        protocol = url_parts[0]
-        if (protocol == 'https'):
-            port = 443
-        url = url_parts[1] # Process rest of url
-            
-    host_and_path = url.split('/', 1)
-    host = host_and_path[0]
-    
-    if len(host_and_path) != 1:
-        path = host_and_path[1]
-    
-    # Check to see if port number is specified
-    if ':' in host:
-        host_and_port = host.split(':', 1)
-        host = host_and_port[0]
-        try:
-            port = int(host_and_port[1])
-        except ValueError:
-            pass
-
-    return host, path, port
 
 def create_request_header(url, method, header_dict, body=''):
     host, path, _ = extract_url_parts(url)

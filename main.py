@@ -1,23 +1,18 @@
 from html_parser import HTMLParser
-from requests import extract_url_parts, get_request, post_request
-import password_generator
+from requests import get_request, post_request
+from url_utils import extract_url_parts, reformat_url
 import collections
+import password_generator
+import socket
 
 password_list = []
 MAX_DEPTH = 10
+SUBDOMAINS_FILE_PATH = './subdomains-100.txt'
 
 class Node:
     def __init__(self, url, depth):
         self.url = url
         self.depth = depth
-    
-def add_protocol(url, port):
-    # Add protocol to url
-    if port == 80 and 'http://' not in url:
-        url = 'http://' + url
-    elif port == 443 and 'https://' not in url:
-        url = 'https://' + url 
-    return url   
 
 def add_duplicate_url(url, seen):
     # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
@@ -27,44 +22,6 @@ def add_duplicate_url(url, seen):
     # Else the URL doesn't have a trailing slash and add the URL with a slash to set of seen nodes
     else:
         seen.add(url + '/')       
-
-def reformat_url(url, base_url=''):       
-    # If base URL is given, prepend it to the given URL
-    if base_url != '':      
-        
-        # Ignore relative URLs starting with '#'
-        if '#' not in url:
-            
-            host, _, port = extract_url_parts(base_url)
-
-            # Remove trailing slash from base url
-            if base_url[-1] == '/':
-                base_url = base_url[:-1]
-                
-            # Look for URLs starting with "./" or "//"
-            if len(url) >= 2:
-                # Remove "./" from the start of the URL if present
-                if url[0:2] == './':
-                    url = url[2:]
-
-                # If URL starts with "//", prepend the appropriate protocol
-                elif url[0:2] == '//':
-                    base_url = add_protocol('', port)
-                    url = url[2:]
-                    if len(base_url) > 0:
-                        base_url = base_url[:-1]
-
-                # Remove "/" from the start of the URL if present
-                elif url[0] == '/':
-                    url = url[1:]
-                    base_url = host
-
-            if url not in base_url:
-                url = base_url + '/' + url
-    else:
-        _, _, port = extract_url_parts(url)
-        url = add_protocol(url, port)
-    return url
 
 def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
     print('Depth ' + str(node.depth) + ': Processing: ' + node.url)
@@ -141,10 +98,26 @@ def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen):
     add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen)
     process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack) 
 
-def web_crawler():
-    url = 'http://18.219.249.115/'
-    url = reformat_url(url)
+def read_subdomains():
+    with open(SUBDOMAINS_FILE_PATH, "r") as f:
+        return {subdomain.rstrip() for subdomain in f}
+
+def get_subdomains(url):
+    subdomains = read_subdomains()
+    host, _, _ = extract_url_parts(url)
     
+    url_subdomain = host.split('.')[0] # Subdomain of given URL
+    
+    # Check to see if the URL already has a subdomain from the list
+    if url_subdomain in subdomains:
+        host = host.replace(url_subdomain + '.', '')
+
+    return {subdomain + '.' + host for subdomain in subdomains}
+
+def web_crawler():
+    url = 'http://google.com'
+    url = reformat_url(url)
+    """
     keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
     print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
 
@@ -152,7 +125,22 @@ def web_crawler():
 
     keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {})
     print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
+    """
 
+    print(get_subdomains(url))
+    """
+    for subdomain in get_subdomains(url):
+        try:
+            #Test whether subdomain exists 
+            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn.connect((subdomain, 80))
+
+            crawl_bfs(subdomain, {})            
+        except socket.gaierror:
+            print('Subdomain ' + subdomain + ' was not found.')
+        finally:
+            conn.close()
+    """
 if __name__ == '__main__':
     web_crawler()
     
