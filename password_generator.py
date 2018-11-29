@@ -1,8 +1,21 @@
 def leetspeak(password):
-    intab = "aeltoAELTO"
-    outtab = "4317043170"
-    trans = str.maketrans(intab, outtab)
-    return password.translate(trans)
+    charList = list(password)
+    for x in range(0, len(charList)):
+        if (charList[x] == 'a') or (charList[x] == 'A'):
+                
+                charList[x] = '4'
+        if (charList[x] == 'e') or (charList[x] == 'E'):
+                charList[x] = '3'
+        if (charList[x] == 'l') or (charList[x] == 'L'):
+                charList[x] = '1'
+        if (charList[x] == 't') or (charList[x] == 'T'):
+                charList[x] = '7'
+        if (charList[x] == 'o') or (charList[x] == 'O'):
+                charList[x] = '0'
+
+    returnString = ''.join(charList)
+    return returnString
+
 
 def reverse(password):
     return password[::-1]
@@ -14,9 +27,10 @@ def lowercase(password):
     return str.lower(password)
 
 def generate_password_list(passwords):
-    size = len(passwords)
-    password_set = set(passwords)
-    for i in range(size):
-        password_set.update([leetspeak(passwords[i]), reverse(passwords[i]), 
-            uppercase(passwords[i]), lowercase(passwords[i])])
-    return list(password_set)
+    passwordSet = set()
+    passwordSet.add(passwords)
+    passwordSet.add(leetspeak(passwords))
+    passwordSet.add(reverse(passwords))
+    passwordSet.add(uppercase(passwords))
+    passwordSet.add(lowercase(passwords))
+    return passwordSet
