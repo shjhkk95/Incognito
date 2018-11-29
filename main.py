@@ -9,15 +9,20 @@ import socket
 import nltk
 import time
 
+
 password_list = []
-username = 'user'
-MAX_DEPTH = 10
 SUBDOMAINS_FILE_PATH = './subdomains-100.txt'
 
 class Node:
     def __init__(self, url, depth):
         self.url = url
         self.depth = depth
+
+class Counter:
+    def __init__(self, count, max_depth, page_max):
+        self.count = count
+        self.max_depth = max_depth
+        self.page_max = page_max
 
 def add_duplicate_url(url, seen):
     # If the URL has a trailing slash, add the URL without the slash to set of seen nodes
@@ -28,9 +33,9 @@ def add_duplicate_url(url, seen):
     else:
         seen.add(url + '/')       
 
-def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
+def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, counter):
     print('Depth ' + str(node.depth) + ': Processing: ' + node.url)
-
+    
     # Make GET request to the current URL      
     html_doc = get_request(node.url, header_dict)
     if html_doc is not None:
@@ -43,9 +48,13 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
         form_found = parser.detect_login_form()
         if form_found:
             forms.add(node.url)
-        
+
+        counter.count += 1
+        if counter.count >= counter.page_max:
+            return
+
         # Add reachable URLs from current node if its depth < max depth
-        if node.depth < MAX_DEPTH:
+        if node.depth < counter.max_depth:
             # Retrieve set of URLs reachable from current node 
             linked_urls = parser.extract_urls()
 
@@ -60,7 +69,7 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next):
                     # Traversal dependent function to add next node
                     add_next(url) 
 
-def crawl_bfs(start_url, header_dict):
+def crawl_bfs(start_url, header_dict, counter):
     print('Starting Breadth-First Crawling')
     print('-' * 50)
     forms = set()
@@ -78,11 +87,14 @@ def crawl_bfs(start_url, header_dict):
     while queue:
         node = queue.popleft()
         add_to_queue = lambda url: queue.append(Node(url, node.depth + 1))  
-        process_node(start_url, node, header_dict, forms, keywords, seen, add_to_queue)
+        process_node(start_url, node, header_dict, forms, keywords, seen, add_to_queue, counter)
+
+        if counter.count >= counter.page_max:
+            return keywords, forms, seen
         
     return keywords, forms, seen
 
-def crawl_dfs(start_url, header_dict):
+def crawl_dfs(start_url, header_dict, counter):
     """ Wrapper function to initialize first call to recursive DFS crawl function """
     
     print('Starting Depth-First Crawling')
@@ -96,19 +108,18 @@ def crawl_dfs(start_url, header_dict):
     seen.add(start_node.url)
     add_duplicate_url(start_node.url, seen)
     
-    _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen)
+    _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen, counter)
     return keywords, forms, seen
 
-def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen):
-    add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen)
-    process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack) 
+def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen, counter):
+    if counter.count >= counter.page_max:
+        return
+    add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen, counter)
+    process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack, counter) 
 
 def brute_force_pass(username ,url, header_dict, keywords):
 
     print(username)
-
-    if username == "":
-        username = "admin"
     
     url = reformat_url(url)
     html = get_request(url, header_dict)
@@ -171,62 +182,34 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains}
 
-def web_crawler():
-
-
-    """
-
-    url = 'http://3.16.219.26/wp-login.php'
-    url = reformat_url(url)
-    headerdict = {}
-    response = get_request(url, headerdict)
-    print(headerdict)
-
-    html = HTMLParser(response)
-    if (html.detect_login_form()):
-        print('AAAAA')
+def main(username, maxdepth, maxpage, mode):
     
-    else:
-        print('BBBBBB')
-    
-    loginString = html.create_login_string('user','IncognitoWebC33rawl')
-    print(loginString)
-    post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': str(len(loginString))}
-    postResponse = post_request(url, post, loginString)
-
-    print(get_status(postResponse))
-
-    """
-
     url = 'http://3.16.219.26/'
     url = reformat_url(url)
-    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
-    print('Login Form :' , forms_bfs)
-    ##print('LOGIN : ',find_url_with_login(seen_bfs))
-    brute_force_pass('user', forms_bfs.pop(), {}, keywords_bfs)
+    page_counter = Counter(0, maxdepth, maxpage)
 
-    """
-    
-    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
-    print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
 
-    print('\n\n\n\n\n')
-
-    if (len(forms_bfs) == 1):
-        brute_force_pass('user', 'www.google.com', {}, keywords_bfs)
-    
-"""
-
-"""
-    print()
-
-    keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {})
-    print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
-    
+    if mode == 'bfs':
+        """
+        BFS
+        """
+        keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
+        brute_force_pass(username, forms_bfs.pop(), {}, keywords_bfs)
+    elif mode == 'dfs':
+        """
+        DFS
+        """
+        keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {}, page_counter)
+        print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
+        brute_force_pass(username, forms_dfs.pop(), {}, keywords_dfs)
+    else:
+        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
+        return
 
     print('\n\n\n', get_subdomains(url))
+    
+"""
 
     for subdomain in get_subdomains(url):
         try:
@@ -239,7 +222,8 @@ def web_crawler():
             print('Subdomain ' + subdomain + ' was not found.')
         finally:
             conn.close()
-    """
+"""
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
     parser.add_argument('--u', nargs = 1, type = str, help = 'USERNAME')
@@ -265,9 +249,6 @@ if __name__ == '__main__':
         mode = 'bfs'
     else :
         mode = args.mode.pop()
+    main(username, maxdepth, maxpage, mode)
 
-    print(username, ' ', maxdepth, ' ', maxpage, ' ', mode)
-
-    
-    ##web_crawler()
     
