@@ -182,7 +182,7 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains}
 
-def main(username, maxdepth, maxpage, mode):
+def main(username, maxdepth, maxpage, mode, header_dict):
     
     url = 'http://3.16.219.26/'
     url = reformat_url(url)
@@ -195,14 +195,14 @@ def main(username, maxdepth, maxpage, mode):
         """
         keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {}, page_counter)
         print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
-        brute_force_pass(username, forms_bfs.pop(), {}, keywords_bfs)
+        brute_force_pass(username, forms_bfs.pop(), header_dict, keywords_bfs)
     elif mode == 'dfs':
         """
         DFS
         """
-        keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {}, page_counter)
+        keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, header_dict, page_counter)
         print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
-        brute_force_pass(username, forms_dfs.pop(), {}, keywords_dfs)
+        brute_force_pass(username, forms_dfs.pop(), header_dict, keywords_dfs)
     else:
         print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
         return
@@ -230,9 +230,11 @@ if __name__ == '__main__':
     parser.add_argument('--maxdepth', nargs = 1, type = int, help = 'MAX DEPTH TO CRAWL')
     parser.add_argument('--maxpages', nargs = 1, type = int, help = 'MAX PAGES TO CRAWL')
     parser.add_argument('--mode', nargs = 1, type = str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+    parser.add_argument('--useragent', nargs = 1, type = str, help = 'USER AGENT')
     args = parser.parse_args()
     username, mode = '',''
     maxdepth, maxpage = 0,0
+    header_dict = {}
     if (args.u ==None):
         username = 'admin'
     else :
@@ -249,6 +251,12 @@ if __name__ == '__main__':
         mode = 'bfs'
     else :
         mode = args.mode.pop()
-    main(username, maxdepth, maxpage, mode)
+    if (args.useragent != None):
+        header_dict = {'User Agent': args.useragent.pop()}
+    useragent = header_dict.get('User Agent')
+    useragent = useragent if useragent != None else 'Default value set (Left to be determined by connection)'
+    print('Initiating web crawl with following configuration\n Algorithm: {}, Username: {}, Max Pages: {}, Max Page Depth: {}, User Agent: {}'
+    .format(mode, username, maxpage, maxdepth, useragent))
+    main(username, maxdepth, maxpage, mode, header_dict)
 
     
