@@ -3,6 +3,7 @@ from nltk import word_tokenize
 from nltk.corpus import stopwords
 from requests import get_request, get_status, init_socket, post_request
 
+
 class HTMLParser:
     
     IGNORED_WORDS = set(stopwords.words('english'))
@@ -59,7 +60,8 @@ class HTMLParser:
         login = ''
         form_present = self.detect_login_form()
         
-        if form_present:               
+        if form_present:    
+              
             for tag in self.soup.find_all('input'):                         
                 input_type = tag.get('type')
 

