@@ -1,13 +1,9 @@
 from bs4 import BeautifulSoup
 from nltk import word_tokenize
-from nltk.corpus import stopwords
 from requests import get_request, get_status, init_socket, post_request
 
 
 class HTMLParser:
-    
-    IGNORED_WORDS = set(stopwords.words('english'))
-    TEXT_TAGS = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li' , 'a']
 
     def __init__(self, html_doc):
         self.html_doc = html_doc
@@ -27,24 +23,12 @@ class HTMLParser:
     def extract_words(self):
         words = set()
         if self.html_doc is not None:
-            text = ''
-            
-            for tag in self.soup.find_all(self.TEXT_TAGS):
-                duplicate = False
-                
-                # Make sure text was not added by a parent tag
-                for parent in tag.parents:
-                    if parent.name in self.TEXT_TAGS:
-                        duplicate = True
-                
-                if not duplicate:    
-                    text += tag.get_text() + '\n'
 
-            tokens = word_tokenize(text)
+            tokens = word_tokenize(self.html_doc)
             
             for word in tokens:
-                if word.isalpha() and len(word) > 1 and word.lower() not in self.IGNORED_WORDS:
-                    words.add(word.lower())
+                if word.isalpha() and len(word) > 1:
+                    words.add(word)
         
         return words
 

