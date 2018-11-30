@@ -8,7 +8,7 @@ CHAR_ENCODING = 'utf-8'
 def init_socket(host, port):
     conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn.connect((host, port)) 
-    conn.settimeout(5)
+    conn.settimeout(0.2)
     if port == 443: # For HTTPS connections
         conn = ssl.wrap_socket(conn)  
     return conn
