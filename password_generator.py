@@ -1,8 +1,8 @@
 def leetspeak(password):
-    letters = 'aelto'
-    leetspeak = '43170'
+    letters = "aeltoAELTO"
+    leetspeak = "4317043170"
     trans = str.maketrans(letters, leetspeak)
-    return password.lower().translate(trans)
+    return password.translate(trans)
 
 def reverse(password):
     return password[::-1]
