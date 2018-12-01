@@ -65,10 +65,7 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, 
                     # Traversal dependent function to add next node
                     add_next(url) 
 
-def crawl_bfs(start_url, header_dict, counter):
-    forms = set()
-    keywords = set()
-    seen = set()
+def crawl_bfs(start_url, header_dict, counter, forms, keywords, seen):
     queue = collections.deque()
 
     if counter.count >= counter.page_max:
@@ -92,14 +89,10 @@ def crawl_bfs(start_url, header_dict, counter):
             if counter.count >= counter.page_max:
                 print('\nCrawling Aborted: The maximum number of pages of ' + str(counter.page_max) + ' has been reached!')
                 return keywords, forms, seen
-        
-    return keywords, forms, seen
 
-def crawl_dfs(start_url, header_dict, counter):
+
+def crawl_dfs(start_url, header_dict, counter, forms, keywords, seen):
     """ Wrapper function to initialize first call to recursive DFS crawl function """ 
-    forms = set()
-    keywords = set()
-    seen = set()
 
     if counter.count >= counter.page_max:
         print('\nCrawling Aborted: The maximum number of pages of ' + str(counter.page_max) + ' has been reached!')
@@ -112,7 +105,6 @@ def crawl_dfs(start_url, header_dict, counter):
         add_duplicate_url(start_node.url, seen)
         
         _crawl_dfs(start_url, start_node, header_dict, forms, keywords, seen, counter)
-    return keywords, forms, seen
 
 def _crawl_dfs(start_url, node, header_dict, forms, keywords, seen, counter):
     if counter.count >= counter.page_max:
@@ -137,7 +129,7 @@ def get_subdomains(url):
 
     return {subdomain + '.' + host for subdomain in subdomains if subdomain != url_subdomain}
 
-def crawl_subdomains(bfs, url, header_dict, counter):
+def crawl_subdomains(bfs, url, header_dict, counter, forms, keywords, seen):
     print('\nCrawling Subdomains')
     print('-' * 50)    
     for subdomain in get_subdomains(url):
@@ -148,13 +140,44 @@ def crawl_subdomains(bfs, url, header_dict, counter):
             subdomain = reformat_url(subdomain)
             print('\nCrawling Subdomain: ' + subdomain)
             if bfs:
-                crawl_bfs(subdomain, header_dict, counter)
+                crawl_bfs(subdomain, header_dict, counter, forms, keywords, seen)
             else:
-                crawl_dfs(subdomain, header_dict, counter)            
+                crawl_dfs(subdomain, header_dict, counter, forms, keywords, seen)            
         except socket.gaierror:
             print('\nSubdomain ' + subdomain + ' was not found.')
         finally:
             conn.close()    
+
+def crawl_robots(bfs, url, header_dict, counter, forms, keywords, seen):
+    # If url doesnt end with /robots.txt or robots.txt/ then append and call, otherwise call just url
+    robots_url = ''
+    if url.endswith('robots.txt') or url.endswith('robots.txt/'):
+        robots_url = url
+    else:
+        if url.endswith('/'):
+            robots_url = url + 'robots.txt'
+        else:
+            robots_url = url + '/robots.txt'
+
+    try:
+        print('\nTrying robots link: {}'.format(robots_url))
+        textfile = get_request(robots_url, {})
+    except socket.gaierror:
+        print('\nCould not find {}'.format(robots_url))
+        return
+    split_text = textfile.split('\n')
+    allow_disallow = list(filter(lambda x: x.startswith('Disallow:') or x.startswith('Allow:'), split_text))
+    new_links = list(map(lambda x: x.split(' ')[1], allow_disallow))
+    appended_links = list(map(lambda x: '{}{}'.format(url, x), new_links))
+    for link in appended_links:
+        if url not in seen:
+            try:
+                if bfs:
+                    crawl_bfs(link, header_dict, counter, forms, keywords, seen)
+                else:
+                    crawl_dfs(link, header_dict, counter, forms, keywords, seen)
+            except socket.gaierror:
+                print('\nCould not find {}'.format(link))
             
 def brute_force(user, keywords, forms, user_agent):
     passwords = generate_all_passwords(keywords)
@@ -223,18 +246,27 @@ def main():
 
     page_counter = Counter(0, max_depth, max_pages)
 
+    forms = set()
+    keywords = set()
+    seen = set()
+
     if mode == 'bfs':
         """
         BFS
         """
-        keywords, forms, seen = crawl_bfs(url, header_dict, page_counter)
-        crawl_subdomains(True, url, header_dict, page_counter)
+        
+        crawl_bfs(url, header_dict, page_counter, forms, keywords, seen)
+        crawl_subdomains(True, url, header_dict, page_counter, forms, keywords, seen)
+        
+        crawl_robots(True, url, header_dict, page_counter, forms, keywords, seen)
+        
     elif mode == 'dfs':
         """
         DFS
         """
-        keywords, forms, seen = crawl_dfs(url, header_dict, page_counter)
-        crawl_subdomains(False, url, header_dict, page_counter)
+        crawl_dfs(url, header_dict, page_counter, forms, keywords, seen)
+        crawl_subdomains(False, url, header_dict, page_counter, forms, keywords, seen)
+        crawl_robots(False, url, header_dict, page_counter, forms, keywords, seen)
     
     brute_force(username, keywords, forms, user_agent)
 
