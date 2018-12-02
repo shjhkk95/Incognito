@@ -8,7 +8,7 @@ CHAR_ENCODING = 'utf-8'
 def init_socket(host, port):
     conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conn.connect((host, port)) 
-    conn.settimeout(0.5)
+    conn.settimeout(0.001)
     if port == 443: # For HTTPS connections
         conn = ssl.wrap_socket(conn)  
     return conn
@@ -61,7 +61,9 @@ def post_request(url, header_dict, body):
     host, _, port = extract_url_parts(url)
     conn = init_socket(host, port)
     post_string = create_request_header(url, 'POST', header_dict, body)
-    send_request(conn, post_string)
-    response = receive_response(conn)
+    response = ''
+    while len(response) == 0:
+        send_request(conn, post_string)
+        response = receive_response(conn)
     conn.close()
     return response

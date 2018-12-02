@@ -232,6 +232,7 @@ def brute_force(user, keywords, forms, user_agent):
             print('Bruteforce Failed')
         else:
             print(combination)
+        print()
        
 def main():
     parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
