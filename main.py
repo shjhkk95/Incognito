@@ -1,6 +1,7 @@
 from html_parser import HTMLParser
 from password_generator import generate_all_passwords
 from requests import get_request, get_status, post_request
+from time import sleep
 from url_utils import extract_url_parts, reformat_url
 
 import argparse
@@ -88,8 +89,7 @@ def crawl_bfs(start_url, header_dict, counter, forms, keywords, seen):
 
             if counter.count >= counter.page_max:
                 print('\nCrawling Aborted: The maximum number of pages of ' + str(counter.page_max) + ' has been reached!')
-                return keywords, forms, seen
-
+                return
 
 def crawl_dfs(start_url, header_dict, counter, forms, keywords, seen):
     """ Wrapper function to initialize first call to recursive DFS crawl function """ 
@@ -215,6 +215,8 @@ def brute_force(user, keywords, forms, user_agent):
         
         if not done:
             print('Ran out of passwords! Bruteforce failed!')
+        
+        sleep(5) # Temporary pause between forms to see end result of the current form
           
 def main():
     parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
@@ -253,11 +255,9 @@ def main():
     if mode == 'bfs':
         """
         BFS
-        """
-        
+        """  
         crawl_bfs(url, header_dict, page_counter, forms, keywords, seen)
-        crawl_subdomains(True, url, header_dict, page_counter, forms, keywords, seen)
-        
+        crawl_subdomains(True, url, header_dict, page_counter, forms, keywords, seen)      
         crawl_robots(True, url, header_dict, page_counter, forms, keywords, seen)
         
     elif mode == 'dfs':
